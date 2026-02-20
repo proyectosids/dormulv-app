@@ -8,6 +8,7 @@ class ReporteMonitor {
   final String? matriculaReportado; 
   final String? reportadoPor; 
   final String? tipoUsuarioReportante;
+  final String? firmaEstudiante;
 
   ReporteMonitor({
     required this.idReporte,
@@ -19,6 +20,7 @@ class ReporteMonitor {
     this.matriculaReportado, 
     this.reportadoPor,
     this.tipoUsuarioReportante,
+    this.firmaEstudiante,
   });
 
   factory ReporteMonitor.fromJson(Map<String, dynamic> json) {
@@ -40,6 +42,8 @@ class ReporteMonitor {
       matriculaReportado: json['MatriculaReportado'], 
       reportadoPor: json['ReportadoPor'],
       tipoUsuarioReportante: json['TipoUsuarioReportante'],
+      firmaEstudiante: json['FirmaEstudiante'],
+
     );
   }
 }

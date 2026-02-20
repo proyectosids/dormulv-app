@@ -5,6 +5,7 @@ class AmonestacionPreceptor {
   final String nivel; 
   final String motivo;
   final DateTime fecha;
+  final String? firmaEstudiante;
 
   AmonestacionPreceptor({
     required this.idAmonestacion,
@@ -13,6 +14,8 @@ class AmonestacionPreceptor {
     required this.nivel,
     required this.motivo,
     required this.fecha,
+    this.firmaEstudiante,
+
   });
 
   factory AmonestacionPreceptor.fromJson(Map<String, dynamic> json) {
@@ -31,6 +34,7 @@ class AmonestacionPreceptor {
       nivel: json['Nivel'] ?? 'Desconocido',
       motivo: json['Motivo'] ?? 'Sin motivo',
       fecha: parsedDate,
+      firmaEstudiante: json['FirmaEstudiante'],
     );
   }
 }

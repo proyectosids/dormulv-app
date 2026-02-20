@@ -1,5 +1,10 @@
 plugins {
+    // Definimos la versión aquí para que mande sobre todo el proyecto
+    id("com.android.application") version "8.9.1" apply false
+    // Quitamos la versión de aquí para evitar el conflicto del "classpath"
+    id("com.android.library") apply false 
     id("com.google.gms.google-services") version "4.4.4" apply false
+    id("org.jetbrains.kotlin.android") version "2.1.0" apply false
 }
 allprojects {
     repositories {

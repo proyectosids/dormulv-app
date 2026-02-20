@@ -1,11 +1,16 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
+
+// Importaciones del proyecto
+import 'package:gestion_dormitorios/config/api_config.dart';
+import 'package:gestion_dormitorios/widgets/firma_dialog_widget.dart';
+import 'package:gestion_dormitorios/widgets/ver_firma_dialog.dart';
 import 'package:gestion_dormitorios/providers/user_provider.dart';
-// Importamos el servicio y los modelos necesarios
 import 'package:gestion_dormitorios/services/reporte_service.dart';
 import 'package:gestion_dormitorios/Administrador/Monitor/models/reporte_monitor_model.dart';
-// Importamos la pantalla para crear reporte
 import 'package:gestion_dormitorios/Administrador/Monitor/screens/crear_reporte_screen.dart';
 
 class ReportesMonitorScreen extends StatefulWidget {
@@ -19,11 +24,10 @@ class _ReportesMonitorScreenState extends State<ReportesMonitorScreen> {
   final TextEditingController _matriculaController = TextEditingController();
   final ReporteService _reporteService = ReporteService();
 
-  // Estado para manejar la búsqueda
   Future<List<ReporteMonitor>>? _futureReportes;
-  String? _matriculaBuscada; // Guardamos la matrícula que se buscó
+  String? _matriculaBuscada;
   bool _isLoading = false;
-  String _mensaje = 'Ingresa una matrícula para ver sus reportes.'; // Mensaje inicial
+  String _mensaje = 'Ingresa una matrícula para ver sus reportes.';
 
   @override
   void dispose() {
@@ -31,7 +35,45 @@ class _ReportesMonitorScreenState extends State<ReportesMonitorScreen> {
     super.dispose();
   }
 
-  /// Función para iniciar la búsqueda de reportes
+  // --- NUEVA FUNCIONALIDAD: FIRMA ---
+  void _abrirFirmaDialog(int idReporte) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => FirmaDialogWidget(
+        onConfirm: (String firmaBase64) async {
+          await _enviarFirmaAlBackend(idReporte, 'REPORTE', firmaBase64);
+        },
+      ),
+    );
+  }
+
+  Future<void> _enviarFirmaAlBackend(int id, String tipo, String base64) async {
+    final url = Uri.parse('${ApiConfig.baseUrl}/firmas/guardar');
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'idDocumento': id, 'tipo': tipo, 'firmaBase64': base64}),
+      );
+      if (response.statusCode == 200) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("✅ Firma guardada con éxito"), backgroundColor: Colors.green),
+          );
+        }
+        // 👇 ESTA ES LA CLAVE: Refrescamos la búsqueda para actualizar el estado del botón
+        _buscarReportes();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("❌ Error de conexión: $e"), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   void _buscarReportes() {
     final matricula = _matriculaController.text.trim();
     if (matricula.isEmpty) {
@@ -40,32 +82,25 @@ class _ReportesMonitorScreenState extends State<ReportesMonitorScreen> {
       );
       return;
     }
-
-    // Oculta el teclado
     FocusScope.of(context).unfocus();
-
     setState(() {
-      _isLoading = true; // Mostramos indicador mientras busca
+      _isLoading = true;
       _futureReportes = _reporteService.buscarReportesMonitor(matricula);
-      _matriculaBuscada = matricula; // Guardamos la matrícula buscada
-      _mensaje = ''; // Limpiamos el mensaje inicial
+      _matriculaBuscada = matricula;
+      _mensaje = '';
     });
-
-    // Manejamos el futuro para quitar el loading y actualizar mensaje si hay error/no hay datos
     _futureReportes!.then((_) {
       if (mounted) setState(() => _isLoading = false);
     }).catchError((error) {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          // Mostramos el error específico que viene del service
           _mensaje = '$error'; 
         });
       }
     });
   }
 
-  /// Navega a la pantalla para crear un nuevo reporte
   void _irACrearReporte() {
     if (_matriculaBuscada == null || _matriculaBuscada!.isEmpty) {
        ScaffoldMessenger.of(context).showSnackBar(
@@ -76,11 +111,9 @@ class _ReportesMonitorScreenState extends State<ReportesMonitorScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        // Le pasamos la matrícula buscada a la pantalla de creación
         builder: (_) => CrearReporteScreen(matriculaEstudiante: _matriculaBuscada!),
       ),
     ).then((seGuardo) {
-      // Si la pantalla de crear devuelve true, refrescamos la búsqueda actual
       if (seGuardo == true) {
         _buscarReportes();
       }
@@ -97,7 +130,6 @@ class _ReportesMonitorScreenState extends State<ReportesMonitorScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // --- Campo de Búsqueda ---
             TextField(
               controller: _matriculaController,
               decoration: InputDecoration(
@@ -105,38 +137,31 @@ class _ReportesMonitorScreenState extends State<ReportesMonitorScreen> {
                 hintText: 'Ej. 222100',
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                // Añadimos un botón de limpiar
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.clear),
                   onPressed: () {
                     _matriculaController.clear();
                     setState(() {
-                      _futureReportes = null; // Limpiamos resultados
+                      _futureReportes = null;
                       _matriculaBuscada = null;
                       _mensaje = 'Ingresa una matrícula para ver sus reportes.';
                     });
                   },
                 ),
               ),
-              keyboardType: TextInputType.number, // Teclado numérico
-              textInputAction: TextInputAction.search, // Cambiado para claridad
-              onSubmitted: (_) => _buscarReportes(), // Permite buscar con Enter
+              keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (_) => _buscarReportes(),
             ),
             const SizedBox(height: 16),
-            // --- Botón de Buscar ---
             ElevatedButton.icon(
-              onPressed: _isLoading ? null : _buscarReportes, // Deshabilitado mientras carga
+              onPressed: _isLoading ? null : _buscarReportes,
               icon: _isLoading 
-                   ? Container(
-                       width: 24, 
-                       height: 24, 
-                       padding: const EdgeInsets.all(2.0), 
-                       child: const CircularProgressIndicator(strokeWidth: 3, color: Colors.white)
-                     ) 
+                   ? Container(width: 24, height: 24, padding: const EdgeInsets.all(2.0), child: const CircularProgressIndicator(strokeWidth: 3, color: Colors.white)) 
                    : const Icon(Icons.search),
               label: Text(_isLoading ? 'Buscando...' : 'Buscar Reportes'),
               style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50), // Botón ancho
+                minimumSize: const Size(double.infinity, 50),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
@@ -144,32 +169,23 @@ class _ReportesMonitorScreenState extends State<ReportesMonitorScreen> {
 
             Container(
               height: MediaQuery.of(context).size.height * 0.5, 
-              child: _isLoading && _futureReportes == null // Solo muestra loading al inicio
+              child: _isLoading && _futureReportes == null
                   ? const Center(child: CircularProgressIndicator()) 
                   : (_futureReportes == null
-                      ? Center(child: Text(_mensaje, textAlign: TextAlign.center)) // Mensaje inicial o de error
+                      ? Center(child: Text(_mensaje, textAlign: TextAlign.center))
                       : FutureBuilder<List<ReporteMonitor>>(
                           future: _futureReportes,
                           builder: (context, snapshot) {
-                            // No mostramos loading aquí, ya lo controla _isLoading
                             if (snapshot.connectionState == ConnectionState.waiting && !_isLoading) {
                                return const Center(child: CircularProgressIndicator());
                             }
-                            
-                            // Si el future completó con error (ya manejado en _buscarReportes)
                             if (snapshot.hasError && _mensaje.isNotEmpty) {
-                               return Center(child: Text(_mensaje, textAlign: TextAlign.center, style: TextStyle(color: Colors.red)));
+                               return Center(child: Text(_mensaje, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red)));
                             }
-                            
                             if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                              return Center(child: Text(
-                                _mensaje.isNotEmpty ? _mensaje : 'No se encontraron reportes para la matrícula $_matriculaBuscada.',
-                                textAlign: TextAlign.center,
-                              ));
+                              return Center(child: Text(_mensaje.isNotEmpty ? _mensaje : 'No se encontraron reportes.', textAlign: TextAlign.center));
                             }
-
                             final reportes = snapshot.data!;
-                            // Si hay datos, mostramos la lista
                             return ListView.builder(
                               itemCount: reportes.length,
                               itemBuilder: (context, index) {
@@ -182,9 +198,8 @@ class _ReportesMonitorScreenState extends State<ReportesMonitorScreen> {
           ],
         ),
       ),
-      // --- Botón Flotante para Crear Reporte ---
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _isLoading ? null : _irACrearReporte, // Deshabilitado si está buscando
+        onPressed: _isLoading ? null : _irACrearReporte,
         icon: const Icon(Icons.add),
         label: const Text('Nuevo Reporte'),
         tooltip: 'Crear un nuevo reporte para el estudiante buscado',
@@ -192,12 +207,14 @@ class _ReportesMonitorScreenState extends State<ReportesMonitorScreen> {
     );
   }
 
-  /// Widget para mostrar la tarjeta de un reporte
   Widget _buildReporteCard(BuildContext context, ReporteMonitor reporte) {
     final theme = Theme.of(context);
-    // Usamos los colores definidos previamente para consistencia
     final colorEstado = _colorEstado(reporte.estado); 
     final iconoEstado = _iconoEstado(reporte.estado);
+    
+    // 👇 Esta lógica detecta si ya existe la firma para decidir qué mostrar
+    final bool estaFirmado = reporte.firmaEstudiante != null && reporte.firmaEstudiante!.isNotEmpty;
+    final bool puedeFirmar = reporte.estado.toLowerCase() == 'aprobado';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -208,47 +225,65 @@ class _ReportesMonitorScreenState extends State<ReportesMonitorScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Estudiante: ${reporte.nombreEstudianteReportado}',
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
-             Text(
-              'Matrícula: ${_matriculaBuscada ?? 'N/A'}', // Muestra la matrícula buscada
-              style: theme.textTheme.bodySmall,
-            ),
+            Text('Estudiante: ${reporte.nombreEstudianteReportado}', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+            Text('Matrícula: ${reporte.matriculaReportado ?? _matriculaBuscada ?? 'N/A'}', style: theme.textTheme.bodySmall),
             const Divider(height: 16),
-            Text(
-              'Fecha: ${DateFormat('dd/MM/yyyy HH:mm').format(reporte.fechaReporte)}', // Incluimos hora
-              style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
+            Text('Fecha: ${DateFormat('dd/MM/yyyy HH:mm').format(reporte.fechaReporte)}', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Text('Motivo: ${reporte.motivo}'),
             const SizedBox(height: 8),
-            Text(
-              'Reportado por: ${reporte.reportadoPorNombre}',
-              style: theme.textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic),
-            ),
-            const SizedBox(height: 12),
-            Align( // Alineamos la etiqueta de estado a la derecha
-              alignment: Alignment.centerRight,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: colorEstado.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
+            Text('Reportado por: ${reporte.reportadoPorNombre}', style: theme.textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic)),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: colorEstado.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+                  child: Row(
+                    children: [
+                      Icon(iconoEstado, size: 16, color: colorEstado),
+                      const SizedBox(width: 6),
+                      Text(reporte.estado, style: TextStyle(color: colorEstado, fontWeight: FontWeight.w600, fontSize: 12)),
+                    ],
+                  ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(iconoEstado, size: 16, color: colorEstado),
-                    const SizedBox(width: 6),
-                    Text(
-                      reporte.estado,
-                      style: TextStyle(color: colorEstado, fontWeight: FontWeight.w600, fontSize: 12),
+
+                // --- LÓGICA DE FIRMA DINÁMICA ---
+                if (estaFirmado)
+                  InkWell(
+                    onTap: () => showDialog(
+                      context: context, 
+                      builder: (_) => VerFirmaDialog(
+                        firmaBase64: reporte.firmaEstudiante!, 
+                        titulo: "Firma Estudiante"
+                      )
                     ),
-                  ],
-                ),
-              ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.verified, color: Colors.green.shade600, size: 18),
+                        const SizedBox(width: 4),
+                        Text("Firmado (Ver)", style: TextStyle(color: Colors.green.shade600, fontWeight: FontWeight.bold, decoration: TextDecoration.underline)),
+                      ],
+                    ),
+                  )
+                else if (puedeFirmar) 
+                  ElevatedButton.icon(
+                    onPressed: () => _abrirFirmaDialog(reporte.idReporte),
+                    icon: const Icon(Icons.draw, size: 18),
+                    label: const Text("Firmar"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blueAccent, 
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  )
+                else 
+                  const Text(
+                    "Esperando aprobación", 
+                    style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey)
+                  ),
+              ],
             ),
           ],
         ),
@@ -256,7 +291,6 @@ class _ReportesMonitorScreenState extends State<ReportesMonitorScreen> {
     );
   }
 
-  // --- Funciones auxiliares de estilo (copiadas de ReportesAlumnoScreen) ---
   Color _colorEstado(String estado) {
     switch (estado.toLowerCase()) {
       case 'aprobado': return Colors.green;
@@ -275,4 +309,3 @@ class _ReportesMonitorScreenState extends State<ReportesMonitorScreen> {
     }
   }
 }
-

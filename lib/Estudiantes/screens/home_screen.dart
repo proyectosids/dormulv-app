@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:gestion_dormitorios/providers/user_provider.dart';
 import 'package:gestion_dormitorios/providers/theme_provider.dart';
+// IMPORTA EL SERVICIO QUE CREAMOS ARRIBA
+import 'package:gestion_dormitorios/services/notification_token_service.dart'; 
+
 import 'package:gestion_dormitorios/Estudiantes/screens/limpieza_screen.dart';
 import 'package:gestion_dormitorios/Estudiantes/screens/asistencia_screen.dart';
 import 'package:gestion_dormitorios/Estudiantes/screens/amonestaciones_screen.dart';
@@ -11,14 +14,35 @@ import 'package:gestion_dormitorios/Estudiantes/screens/perfil_screen.dart';
 import 'package:gestion_dormitorios/Estudiantes/screens/configuracio_screen.dart';
 import 'package:gestion_dormitorios/foto_perfil_widget.dart';
 
-class HomeScreen extends StatelessWidget {
+// 1. CAMBIO A STATEFULWIDGET
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  
+  // 2. INITSTATE: Aquí registramos el token apenas entra el alumno
+  @override
+  void initState() {
+    super.initState();
+    // Usamos addPostFrameCallback para acceder al Provider de forma segura
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = Provider.of<UserProvider>(context, listen: false);
+      if (user.matricula.isNotEmpty) {
+        // LLAMADA AL SERVICIO
+        NotificationTokenService.registerToken(user.matricula);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final user = Provider.of<UserProvider>(context); // ✅ Usuario en sesión
+    final user = Provider.of<UserProvider>(context); 
 
     return Scaffold(
       appBar: AppBar(
@@ -52,7 +76,7 @@ class HomeScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   FotoPerfilWidget(
-                    matricula: user.matricula, // Usamos la matrícula del provider
+                    matricula: user.matricula, 
                     size: 30,
                   ),
                   const SizedBox(height: 10),
@@ -97,7 +121,6 @@ class HomeScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-       // TARJETA DE PERFIL SUPERIOR
             Row(
               children: [
                 FotoPerfilWidget(
@@ -106,7 +129,6 @@ class HomeScreen extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 
-                // --- AQUÍ ESTÁ LA SOLUCIÓN: Expanded ---
                 Expanded( 
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -118,7 +140,6 @@ class HomeScreen extends StatelessWidget {
                           fontSize: 16,
                           color: theme.textTheme.bodyMedium?.color,
                         ),
-                        // Esto ayuda a que si es muy largo, se ponga "..." al final
                         maxLines: 2, 
                         overflow: TextOverflow.ellipsis, 
                       ),
@@ -133,12 +154,11 @@ class HomeScreen extends StatelessWidget {
                     ],
                   ),
                 )
-                // ---------------------------------------
               ],
             ),
             const SizedBox(height: 30),
 
-          Expanded(
+            Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final double width = constraints.maxWidth;
