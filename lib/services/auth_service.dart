@@ -248,4 +248,20 @@ class AuthService {
       return false;
     }
   }
+
+  // 6. ACTUALIZAR TOKEN FCM
+Future<void> updateFCMToken(String usuarioID, String? token) async {
+  if (token == null) return;
+  final url = Uri.parse('${ApiConfig.baseUrl}/auth/update-token');
+  try {
+    await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'usuarioID': usuarioID, 'token': token}),
+    );
+    print("FCM Token sincronizado con éxito.");
+  } catch (e) {
+    print("Error sincronizando token: $e");
+  }
+}
 }

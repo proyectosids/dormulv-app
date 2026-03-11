@@ -240,7 +240,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
       children: [
         const Text('Registro', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
         const SizedBox(height: 20),
-        _field(matriculaCtrl, 'Matrícula / No. Empleado', Icons.person_search),
+        _field(matriculaCtrl, 'Matrícula / No. de Colaborador', Icons.person_search),
         const SizedBox(height: 20),
         _btn('BUSCAR', _searchUser)
       ],
@@ -252,7 +252,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Center(child: Text('¿Eres tú?', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold))),
+        const Center(child: Text('Verifica tus datos', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold))),
         const SizedBox(height: 15),
         _row('Nombre:', '${u.nombre} ${u.apellidos}'),
         _row('ID:', (u.matricula ?? u.numEmpleado).toString()),

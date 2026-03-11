@@ -7,6 +7,7 @@ import 'package:gestion_dormitorios/Administrador/Preceptor/screens/dashboard_pr
 import 'package:gestion_dormitorios/Administrador/Monitor/screens/dashboard_monitor_screen.dart';
 import 'package:gestion_dormitorios/Estudiantes/screens/registro_screen.dart';
 import 'package:gestion_dormitorios/recuperar_password_screen.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -44,36 +45,63 @@ class _LoginScreenState extends State<LoginScreen> {
         final userProvider = Provider.of<UserProvider>(context, listen: false);
 
         userProvider.setUser(userData);
-
+        
+        try {
+          String? fcmToken = await FirebaseMessaging.instance.getToken();
+          if (fcmToken != null) {
+            await _authService.updateFCMToken(usuarioID, fcmToken);
+          }
+        } catch (fcmError) {
+          debugPrint("Error obteniendo FCM Token: $fcmError");
+        }
+        
         final rol = userProvider.idRol; 
         
         if (!mounted) return; 
 
         if (rol == 1) { // Preceptor
-          Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const DashboardPreceptorScreen()));
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardPreceptorScreen()));
         } else if (rol == 2) { // Monitor
-          Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const DashboardMonitorScreen()));
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardMonitorScreen()));
         } else if (rol == 3) { // Estudiante
-          Navigator.pushReplacement(
-              context, MaterialPageRoute(builder: (_) => const HomeScreen()));
-        } else {
-           ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Rol de usuario desconocido.'), backgroundColor: Colors.red),
-            );
-        }
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+        } 
 
       } else {
-         if (!mounted) return;
-         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(response['message'] ?? 'Credenciales incorrectas'), backgroundColor: Colors.orange),
+        if (!mounted) return;
+
+        // 1. Primero extraemos el mensaje que viene del servicio
+        String rawMessage = response['message'] ?? 'Credenciales incorrectas';
+        
+        // 2. Definimos valores por defecto (Naranja para credenciales)
+        String finalMessage = rawMessage;
+        Color snackColor = Colors.orange;
+
+        // 3. Si el error es de red, cambiamos el mensaje y el color a ROJO
+        if (rawMessage.toLowerCase().contains('conexión') || 
+            rawMessage.toLowerCase().contains('timeout') || 
+            rawMessage.toLowerCase().contains('connect')) {
+          finalMessage = 'Sin conexión al servidor. Revisa tu internet.';
+          snackColor = Colors.red;
+        }
+
+        // 4. USAMOS LAS VARIABLES finalMessage y snackColor AQUÍ
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(finalMessage), 
+            backgroundColor: snackColor,
+            duration: const Duration(seconds: 3),
+          ),
         );
       }
     } catch (e) {
-       if (!mounted) return;
-       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al conectar: $e'), backgroundColor: Colors.red),
+      if (!mounted) return;
+      // Este bloque captura errores de código o fallos críticos
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error inesperado: $e'), 
+          backgroundColor: Colors.red
+        ),
       );
     } finally {
       if (mounted) {
@@ -98,7 +126,7 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 Image.asset('assets/logoulv.png', height: 100, color: isDark ? Colors.white : null),
                 const SizedBox(height: 16),
-                Text('HOGAR DE VARONES UNIVERSITARIOS',
+                Text('DORMITORIOS ULV',
                   textAlign: TextAlign.center, // Centramos el texto
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: theme.textTheme.bodyMedium?.color)),
                 const SizedBox(height: 32),

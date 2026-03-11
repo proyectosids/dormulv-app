@@ -33,6 +33,39 @@ class _AsignarCuartoScreenState extends State<AsignarCuartoScreen> {
     _cargarDatosIniciales();
   }
 
+  Future<bool> _mostrarAlertaCambio(String nombre, String numeroCuarto) async {
+    return await showDialog(
+          context: context,
+          barrierDismissible: false, // Obliga a responder
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                SizedBox(width: 10),
+                Text('Aviso de Cambio'),
+              ],
+            ),
+            content: Text(
+              'El estudiante $nombre ya está asignado al Cuarto $numeroCuarto.\n\n'
+              '¿Deseas moverlo al nuevo cuarto seleccionado?',
+              style: const TextStyle(fontSize: 16),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('CANCELAR', style: TextStyle(color: Colors.grey)),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange[800]),
+                child: const Text('SÍ, CAMBIAR', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
   void _cargarDatosIniciales() async {
     try {
       final estudiantes = await _service.getEstudiantesParaAsignacion();
@@ -112,6 +145,23 @@ class _AsignarCuartoScreenState extends State<AsignarCuartoScreen> {
       return;
     }
 
+    // 1. Buscamos al estudiante en la lista local para ver si ya tiene cuarto
+    final estudiante = _estudiantes.firstWhere(
+      (est) => est['Matricula'].toString() == _matriculaSeleccionada,
+      orElse: () => null,
+    );
+
+    // 2. Verificamos si IdCuarto no es null y es diferente de 0
+    if (estudiante != null && estudiante['IdCuarto'] != null && estudiante['IdCuarto'] != 0) {
+      bool confirmar = await _mostrarAlertaCambio(
+        estudiante['NombreCompleto'], 
+        estudiante['NumeroCuarto']?.toString() ?? "otro"
+      );
+      
+      if (!confirmar) return; // Si dice que no, nos detenemos aquí
+    }
+
+    // 3. Si no tenía cuarto o si aceptó el cambio, procedemos a guardar
     setState(() => _saving = true);
 
     final exito = await _service.asignarCuarto(
@@ -125,7 +175,7 @@ class _AsignarCuartoScreenState extends State<AsignarCuartoScreen> {
     if (exito) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Asignación exitosa'), backgroundColor: Colors.green));
-      _cargarDatosIniciales();
+      _cargarDatosIniciales(); // Recargamos la lista para actualizar estados de los chicos
 
       setState(() {
         _matriculaSeleccionada = null;

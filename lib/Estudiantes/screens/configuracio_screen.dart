@@ -37,13 +37,13 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
               isDark: isDark,
               onChanged: (val) => themeProvider.toggleTheme(val),
             ),
-            const SizedBox(height: 10),
-            _buildOptionTile(
-              icon: Icons.language,
-              title: 'Idioma',
-              isDark: isDark,
-              onTap: () => _mostrarSelectorIdioma(context),
-            ),
+           // const SizedBox(height: 10),
+            //_buildOptionTile(
+              //icon: Icons.language,
+              //title: 'Idioma',
+             // isDark: isDark,
+             // onTap: () => _mostrarSelectorIdioma(context),
+           // ),
             const SizedBox(height: 10),
             _buildOptionTile(
               icon: Icons.info_outline,
@@ -189,18 +189,29 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
     );
   }
 
-  void _mostrarAcercaDe(BuildContext context) {
-    showAboutDialog(
-      context: context,
-      applicationName: 'HVU ULV',
-      applicationVersion: '1.0.0',
-      applicationIcon: const Icon(Icons.home_work, color: Color(0xFF1E4D78)),
-      children: const [
-        Text(
-          'Aplicación del Hogar de Varones Universitarios de la Universidad Linda Vista.\n'
-          'Permite gestionar asistencia, limpieza, reportes y amonestaciones.',
-        ),
-      ],
-    );
-  }
+ void _mostrarAcercaDe(BuildContext context) {
+  showAboutDialog(
+    context: context,
+    applicationName: 'HVU ULV',
+    applicationVersion: '1.0.0',
+    applicationIcon: const Icon(Icons.home_work, size: 40, color: Color(0xFF1E4D78)),
+    applicationLegalese: '© 2026 Universidad Linda Vista', // Texto legal o copyright
+    children: const [
+      SizedBox(height: 15), // Espaciado
+      Text(
+        'Aplicación del Hogar de Varones Universitarios de la Universidad Linda Vista.\n\n'
+        'Permite gestionar asistencia, limpieza, reportes y amonestaciones.',
+      ),
+      SizedBox(height: 20),
+      Divider(), // Una línea divisora para separar los créditos
+      Text(
+        'Desarrollado por:',
+        style: TextStyle(fontWeight: FontWeight.bold),
+      ),
+      SizedBox(height: 5),
+      Text('• Duilio Ortega'),
+      Text('• Erik Pérez'),
+    ],
+  );
+}
 }

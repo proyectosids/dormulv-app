@@ -1,4 +1,4 @@
-package com.example.gestion_dormitorios
+package com.duilioortega.hogarulv
 
 import io.flutter.embedding.android.FlutterActivity
 

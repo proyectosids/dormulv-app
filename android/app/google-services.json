@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "702940661171",
-    "project_id": "dormitorios-ulv",
-    "storage_bucket": "dormitorios-ulv.firebasestorage.app"
+    "project_number": "772888852385",
+    "project_id": "hogar-ulv",
+    "storage_bucket": "hogar-ulv.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:702940661171:android:d3e64f509809746b3377c6",
+        "mobilesdk_app_id": "1:772888852385:android:15f65ab1c61205e3347de0",
         "android_client_info": {
-          "package_name": "com.example.gestion_dormitorios"
+          "package_name": "com.duilioortega.hogarulv"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyCdE0Bhfox4-h6FnEquXZqsv0YdMco5Vnc"
+          "current_key": "AIzaSyACaRUPMD9OzpMxb62WNqwU2ki1upA-kUg"
         }
       ],
       "services": {
