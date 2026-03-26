@@ -1,5 +1,11 @@
+import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:gestion_dormitorios/config/api_config.dart'; 
+import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:gestion_dormitorios/providers/user_provider.dart';
 import 'package:gestion_dormitorios/services/limpieza_service.dart';
 import 'package:gestion_dormitorios/Administrador/Monitor/models/criterio_limpieza_model.dart';
@@ -20,6 +26,10 @@ class _RegistrarLimpiezaScreenState extends State<RegistrarLimpiezaScreen> {
   int _ordenGeneral = 0;
   int _disciplina = 0;
   final TextEditingController _observacionesController = TextEditingController();
+  
+  // 📸 Variables para la foto
+  File? _fotoEvidencia;
+  final ImagePicker _picker = ImagePicker();
 
   List<CriterioLimpieza> _criteriosList = [];
   bool _isLoading = false;
@@ -36,8 +46,20 @@ class _RegistrarLimpiezaScreenState extends State<RegistrarLimpiezaScreen> {
     super.dispose();
   }
 
+  // 📸 Función para tomar la foto con la cámara
+  Future<void> _tomarFoto() async {
+    final XFile? photo = await _picker.pickImage(
+      source: ImageSource.camera, 
+      imageQuality: 50, // Reducimos calidad para ahorrar ancho de banda
+    );
+    if (photo != null) {
+      setState(() {
+        _fotoEvidencia = File(photo.path);
+      });
+    }
+  }
+
   Future<void> _guardarLimpieza() async {
-    // 1. Validaciones previas
     if (_criteriosList.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Espera a que carguen los criterios.'), backgroundColor: Colors.orange),
@@ -58,21 +80,49 @@ class _RegistrarLimpiezaScreenState extends State<RegistrarLimpiezaScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final resultado = await _limpiezaService.registrarLimpieza(
-        idCuarto: widget.idCuarto,
-        evaluadoPorMatricula: monitorMatricula,
-        criterios: _criteriosList,
-        ordenGeneral: _ordenGeneral,
-        disciplina: _disciplina,
-        observaciones: _observacionesController.text,
-      );
+      // 🚀 Usamos MultipartRequest para enviar archivos y campos de texto
+      // Asumiendo que tu baseUrl es algo como 'http://192.168.1.100:5000/api'
+      final url = Uri.parse('${ApiConfig.baseUrl}/limpieza/registrar');
+      var request = http.MultipartRequest('POST', url);
+
+      // Campos de texto simples
+      request.fields['idCuarto'] = widget.idCuarto.toString();
+      request.fields['evaluadoPor'] = monitorMatricula;
+      request.fields['ordenGeneral'] = _ordenGeneral.toString();
+      request.fields['disciplina'] = _disciplina.toString();
+      request.fields['observaciones'] = _observacionesController.text;
+
+      // Convertimos la lista de criterios a JSON String para que Multer la reciba
+      final criteriosJson = _criteriosList.map((c) => {
+        'idCriterio': c.idCriterio,
+        'calificacion': c.calificacion,
+      }).toList();
+      request.fields['detallesMatutinos'] = json.encode(criteriosJson);
+
+      // Adjuntar la foto si existe
+      if (_fotoEvidencia != null) {
+        request.files.add(await http.MultipartFile.fromPath(
+          'evidencia', // Debe coincidir con upload.single('evidencia') en el Backend
+          _fotoEvidencia!.path,
+          contentType: MediaType('image', 'jpeg'),
+        ));
+      }
+
+      // Enviar y esperar respuesta
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
 
       if (!mounted) return;
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(resultado['message'] ?? 'Guardado con éxito'), backgroundColor: Colors.green),
-      );
-      Navigator.pop(context, true);
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Guardado con éxito'), backgroundColor: Colors.green),
+        );
+        Navigator.pop(context, true);
+      } else {
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['message'] ?? 'Error al guardar');
+      }
 
     } catch (e) {
       if (!mounted) return;
@@ -90,14 +140,12 @@ class _RegistrarLimpiezaScreenState extends State<RegistrarLimpiezaScreen> {
       appBar: AppBar(
         title: Text('Evaluar Cuarto ${widget.idCuarto}'),
         actions: [
-          // Mantenemos el botón aquí, pero su estado habilitado/deshabilitado dependerá de _isLoading
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: _isLoading
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                 : IconButton(
                     icon: const Icon(Icons.save),
-                    // El truco: habilitamos el botón siempre, la validación se hace dentro de la función
                     onPressed: _guardarLimpieza, 
                     tooltip: 'Guardar',
                   ),
@@ -115,10 +163,8 @@ class _RegistrarLimpiezaScreenState extends State<RegistrarLimpiezaScreen> {
             return const Center(child: Text('No hay criterios definidos.'));
           }
 
-          // Solo llenamos la lista si está vacía (primera carga)
           if (_criteriosList.isEmpty) {
             _criteriosList = snapshot.data!;
-            // NOTA: No llamamos setState aquí para evitar reconstrucciones infinitas
           }
 
           return ListView(
@@ -127,7 +173,6 @@ class _RegistrarLimpiezaScreenState extends State<RegistrarLimpiezaScreen> {
               const Text('Criterios Matutinos (Máx 80 pts)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
               const SizedBox(height: 10),
               
-              // Lista dinámica de criterios
               ..._criteriosList.map((criterio) => _buildCriterioRow(criterio)).toList(),
 
               const Divider(height: 40, thickness: 2),
@@ -139,6 +184,38 @@ class _RegistrarLimpiezaScreenState extends State<RegistrarLimpiezaScreen> {
               _buildAdditionalScoreRow('Disciplina (Noche)', _disciplina, (val) => setState(() => _disciplina = val)),
 
               const SizedBox(height: 20),
+              
+              // 📸 Sección de Evidencia Visual
+              const Text('Evidencia (Fotos)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              const SizedBox(height: 10),
+              Card(
+                elevation: 0,
+                color: Colors.grey[100],
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Column(
+                  children: [
+                    if (_fotoEvidencia != null)
+                      ClipRRect(
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                        child: Image.file(_fotoEvidencia!, height: 200, width: double.infinity, fit: BoxFit.cover),
+                      ),
+                    ListTile(
+                      leading: Icon(Icons.camera_alt, color: _fotoEvidencia != null ? Colors.green : Colors.blue),
+                      title: Text(_fotoEvidencia == null ? 'Tomar foto de cuarto sucio' : 'Cambiar foto'),
+                      subtitle: Text(_fotoEvidencia == null ? 'Evidencia para el preceptor' : 'Foto capturada'),
+                      onTap: _tomarFoto,
+                    ),
+                    if (_fotoEvidencia != null)
+                      TextButton.icon(
+                        onPressed: () => setState(() => _fotoEvidencia = null),
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        label: const Text('Eliminar foto', style: TextStyle(color: Colors.red)),
+                      )
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
               TextField(
                 controller: _observacionesController,
                 decoration: const InputDecoration(
@@ -148,7 +225,6 @@ class _RegistrarLimpiezaScreenState extends State<RegistrarLimpiezaScreen> {
                 ),
                 maxLines: 3,
               ),
-              // Espacio extra al final para que el botón flotante no tape nada si decidimos usar uno
               const SizedBox(height: 80), 
             ],
           );
@@ -167,8 +243,8 @@ class _RegistrarLimpiezaScreenState extends State<RegistrarLimpiezaScreen> {
             Expanded(child: Text(criterio.descripcion, style: const TextStyle(fontSize: 16))),
             DropdownButton<int>(
               value: criterio.calificacion,
-              underline: Container(), // Quita la línea fea de abajo
-              items: List.generate(11, (index) => index).map((val) { // 0 a 10
+              underline: Container(),
+              items: List.generate(11, (index) => index).map((val) {
                 return DropdownMenuItem(value: val, child: Text(val.toString()));
               }).toList(),
               onChanged: (val) {
@@ -185,7 +261,7 @@ class _RegistrarLimpiezaScreenState extends State<RegistrarLimpiezaScreen> {
 
   Widget _buildAdditionalScoreRow(String label, int value, Function(int) onChanged) {
     return Card(
-      color: Colors.blue[50], // Un color ligero para diferenciar la noche
+      color: Colors.blue[50],
       margin: const EdgeInsets.symmetric(vertical: 4),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
