@@ -165,7 +165,7 @@ class _RegistrarLimpiezaScreenState extends State<RegistrarLimpiezaScreen> {
 
           if (_criteriosList.isEmpty) {
             _criteriosList = snapshot.data!;
-          }
+            }
 
           return ListView(
             padding: const EdgeInsets.all(16),
